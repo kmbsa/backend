@@ -35,11 +35,9 @@ def get_local_ip():
     return preferred_ip
 
 def update_env_file(ip):
-    # Update the .env file with the correct API URL
     with open("./testApp/.env", "r") as file:
         lines = file.readlines()
 
-    # Check if API_URL already exists in the .env file
     found = False
     for i, line in enumerate(lines):
         if line.startswith("API_URL="):
@@ -47,7 +45,6 @@ def update_env_file(ip):
             found = True
             break
 
-    # If API_URL doesn't exist, add it
     if not found:
         lines.append(f"API_URL=http://{ip}:5000\n")
 
@@ -57,6 +54,5 @@ def update_env_file(ip):
 
     print(f"✅ API_URL set to: http://{ip}:5000")
 
-# Fetch the correct IP and update the .env file
 local_ip = get_local_ip()
 update_env_file(local_ip)
