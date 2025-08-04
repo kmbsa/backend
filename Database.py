@@ -72,6 +72,9 @@ class areaImageSchema(ma.SQLAlchemyAutoSchema):
         load_instance = True
         exclude = ('area_parent',) 
 
+    Image_ID = fields.Int(required=True)
+    Image_filename = fields.Str()
+
 class areaCoordinateSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = areaCoordinates
