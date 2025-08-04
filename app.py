@@ -1,4 +1,3 @@
-# src/backend/app.py
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from extensions import db, ma, bcrypt
@@ -15,7 +14,7 @@ from werkzeug.utils import secure_filename
 import uuid 
 
 from sqlalchemy.orm import joinedload
-
+from sqlalchemy import or_
 
 import dynamic_ip as dip
 
@@ -176,25 +175,81 @@ def register():
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Registration error: {e}")
-        return jsonify({'error': 'Server error during registration'}), 500
+        return jsonify({'error': 'Server error during registration'}), 5
+    
+@app.route('/areas', methods=['GET'])
+@token_required
+def get_all_areas(current_user_id):
+    try:
+        print(f"--- API Endpoint /areas hit by user {current_user_id} ---")
+        
+        current_page = request.args.get('page', 1, type=int)
+        items_per_page = request.args.get('per_page', 10, type=int)
+        search_query = request.args.get('search', '')
+
+        print(f"Fetching page {current_page} with {items_per_page} items per page.")
+        if search_query:
+            print(f"Searching for: '{search_query}'")
+
+        if current_page < 1 or items_per_page < 1:
+            print("Invalid pagination parameters received.")
+            return jsonify({"message": "Pagination parameters must be positive integers."}), 400
+
+        base_query = area.query.options(
+            joinedload(area.coordinates),
+            joinedload(area.images)
+        )
+
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            base_query = base_query.filter(
+                or_(
+                    area.Area_Name.ilike(search_pattern),
+                    area.Region.ilike(search_pattern),
+                    area.Province.ilike(search_pattern)
+                )
+            )
+
+        offset_value = (current_page - 1) * items_per_page
+
+        paginated_area_entries = base_query.offset(offset_value).limit(items_per_page + 1).all()
+        
+        print(f"Database query successful. Found {len(paginated_area_entries)} entries.")
+
+        has_more_entries = len(paginated_area_entries) > items_per_page
+
+        if has_more_entries:
+            paginated_area_entries = paginated_area_entries[:-1]
+
+        serialized_entries = area_schema.dump(paginated_area_entries, many=True)
+        
+        print(f"Serialization successful. Returning {len(serialized_entries)} entries with has_more: {has_more_entries}")
+        
+        return jsonify({
+            "entries": serialized_entries,
+            "page": current_page,
+            "per_page": items_per_page,
+            "has_more": has_more_entries
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f"Error fetching paginated map entries for user {current_user_id}: {e}")
+        print(f"An unexpected error occurred: {e}")
+        return jsonify({"message": "An error occurred while fetching paginated map entries.", "error": str(e)}), 500
+
 
 @app.route('/api/area/<int:area_id>', methods=['GET'])
 @token_required
 def get_area_details(current_user_id, area_id):
     try:
-        # Assuming your Area model has relationships named 'coordinates_rel' and 'images_rel'
         current_area = area.query.options(
-            joinedload(area.coordinates_rel),
-            joinedload(area.images_rel)
+            joinedload(area.coordinates),
+            joinedload(area.images)
         ).filter_by(Area_ID=area_id).first()
 
         if not current_area:
             return jsonify({"message": "Area not found."}), 404
-
-        # Optional: Check if the requesting user owns this area (or has permission to view it)
-        # if current_area.User_ID != current_user_id:
-        #     return jsonify({"message": "Unauthorized to view this area."}), 403
-
+        
         result = area_schema.dump(current_area)
         return jsonify({"area": result}), 200
 
@@ -216,10 +271,10 @@ def submitArea(current_user_id):
         region = data.get('region')
         province = data.get('province')
         coordinates_data = data.get('coordinates', [])
-        photos_data = data.get('photos', []) # <--- Check this list!
+        photos_data = data.get('photos', [])
 
-        print(f"Received photos_data: {photos_data}") # DEBUG LINE 1
-        print(f"Number of photos received: {len(photos_data)}") # DEBUG LINE 2
+        print(f"Received photos_data: {photos_data}")
+        print(f"Number of photos received: {len(photos_data)}")
 
         payload_user_id = data.get('user_id')
         if payload_user_id is None:
@@ -274,34 +329,28 @@ def submitArea(current_user_id):
             )
             db.session.add(new_coordinate)
         
-        # --- Handle Images (Photos) - MODIFIED FOR AREA-SPECIFIC FOLDERS ---
         sanitized_area_name = secure_filename(name.lower().replace(" ", "_"))
         area_upload_dir = os.path.join(app.config['BASE_UPLOAD_DIR'], sanitized_area_name)
         
-        # This will only create the folder if photos_data is not empty and the loop runs
-        # Consider making this happen unconditionally if you want the folder even without photos
-        # Or add a print statement here to see if it's reached
-        print(f"Attempting to create directory: {area_upload_dir}") # DEBUG LINE 3
+        print(f"Attempting to create directory: {area_upload_dir}")
         os.makedirs(area_upload_dir, exist_ok=True)
 
 
         for photo_item in photos_data:
-            print(f"Processing photo_item: {photo_item.keys()}") # DEBUG LINE 4
+            print(f"Processing photo_item: {photo_item.keys()}")
             base64_data = photo_item.get('base64')
             mime_type = photo_item.get('mimeType')
             original_filename = photo_item.get('filename', 'untitled_image')
 
             if not base64_data:
                 app.logger.warning(f"Skipping photo with missing base64 data for area {new_area.Area_ID}.")
-                print("base64_data is empty or None. Skipping this photo.") # DEBUG LINE 5
+                print("base64_data is empty or None. Skipping this photo.")
                 continue
 
             try:
-                # IMPORTANT: Remove the "data:image/jpeg;base64," prefix if it's present!
-                # Expo's ImagePicker and Camera sometimes return the full data URI.
                 if ',' in base64_data and base64_data.startswith('data:'):
-                    base64_data = base64_data.split(',')[1]
-                    print("Removed data URI prefix from base64 data.") # DEBUG LINE 6
+                    base64_data = base64.b64decode(base64_data.split(',')[1])
+                    print("Removed data URI prefix from base64 data.")
 
                 image_binary = base64.b64decode(base64_data)
 
@@ -311,13 +360,13 @@ def submitArea(current_user_id):
                 elif '.' in original_filename:
                     extension = "." + original_filename.split('.')[-1]
                 else:
-                    extension = ".jpg" # Default if no info available
+                    extension = ".jpg"
 
                 unique_filename = secure_filename(f"{datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex}{extension}")
                 
                 file_path_on_server = os.path.join(area_upload_dir, unique_filename)
 
-                print(f"Saving image to: {file_path_on_server}") # DEBUG LINE 7
+                print(f"Saving image to: {file_path_on_server}")
                 with open(file_path_on_server, 'wb') as f:
                     f.write(image_binary)
 
@@ -329,11 +378,11 @@ def submitArea(current_user_id):
                     Filepath=public_url
                 )
                 db.session.add(new_image)
-                print(f"Added image entry to DB for {new_area.Area_ID}: {public_url}") # DEBUG LINE 8
+                print(f"Added image entry to DB for {new_area.Area_ID}: {public_url}")
 
             except Exception as img_e:
                 app.logger.error(f"Error processing and saving image for area {new_area.Area_ID}: {img_e}")
-                print(f"Detailed image saving error: {img_e}") # DEBUG LINE 9
+                print(f"Detailed image saving error: {img_e}")
                 continue
 
         db.session.commit()
@@ -347,7 +396,7 @@ def submitArea(current_user_id):
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Error submitting area for user {current_user_id}: {e}")
-        print(f"Overall submission error: {e}") # DEBUG LINE 10
+        print(f"Overall submission error: {e}")
         return jsonify({"message": "An error occurred while submitting the area.", "error": str(e)}), 500
         
 with app.app_context():
