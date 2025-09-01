@@ -16,22 +16,46 @@ import uuid
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
 
-import dynamic_ip as dip
+# --- Import load_dotenv for reading .env files ---
+from dotenv import load_dotenv
+
+# dynamic_ip is not directly used here in app.py's runtime logic,
+# but it's crucial for understanding how the IP for EXTERNAL_BASE_URL
+# is determined for your frontend, and thus what you should put in the backend's .env.
+import dynamic_ip as dip 
 
 app = Flask(__name__)
 CORS(app)
+
+# --- Load environment variables from backend's .env file ---
+# This assumes the .env file is directly in the 'src/backend/' directory,
+# alongside app.py.
+load_dotenv(os.path.join(app.root_path, '.env')) 
 
 connection_string = "mysql+pymysql://root@localhost:3306/Capstone_DB"
 app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = "pp5Z8iqjN7BuHfn"
 
-BASE_UPLOAD_DIR = 'static/area_images'
+BASE_UPLOAD_DIR = 'static/area_images' 
 app.config['BASE_UPLOAD_DIR'] = BASE_UPLOAD_DIR
-os.makedirs(BASE_UPLOAD_DIR, exist_ok=True)
 
-absolute_base_upload_dir = os.path.abspath(BASE_UPLOAD_DIR)
+os.makedirs(os.path.join(app.root_path, BASE_UPLOAD_DIR), exist_ok=True)
+
+absolute_base_upload_dir = os.path.abspath(os.path.join(app.root_path, BASE_UPLOAD_DIR))
 print(f"Backend: Absolute path for base upload directory: {absolute_base_upload_dir}")
+
+# --- Set EXTERNAL_BASE_URL from the backend's .env file ---
+# This value must match the IP:Port that your React Native app (testApp)
+# uses to connect to this Flask backend.
+app.config['EXTERNAL_BASE_URL'] = os.getenv('EXTERNAL_BASE_URL') 
+
+# Add a warning if EXTERNAL_BASE_URL is not set in your backend's .env
+if not app.config['EXTERNAL_BASE_URL']:
+    print("WARNING: EXTERNAL_BASE_URL is NOT set in src/backend/.env! Images and API calls may fail.")
+    print("Please create/update src/backend/.env with: EXTERNAL_BASE_URL=http://YOUR_MACHINE_IP:5000")
+    # You might want to provide a fallback for local testing, e.g., 'http://127.0.0.1:5000'
+    # app.config['EXTERNAL_BASE_URL'] = 'http://127.0.0.1:5000' 
 
 
 db.init_app(app)
@@ -175,7 +199,7 @@ def register():
     except Exception as e:
         db.session.rollback()
         app.logger.error(f"Registration error: {e}")
-        return jsonify({'error': 'Server error during registration'}), 5
+        return jsonify({'error': 'Server error during registration'}), 500
     
 @app.route('/areas', methods=['GET'])
 @token_required
@@ -330,7 +354,7 @@ def submitArea(current_user_id):
             db.session.add(new_coordinate)
         
         sanitized_area_name = secure_filename(name.lower().replace(" ", "_"))
-        area_upload_dir = os.path.join(app.config['BASE_UPLOAD_DIR'], sanitized_area_name)
+        area_upload_dir = os.path.join(app.root_path, app.config['BASE_UPLOAD_DIR'], sanitized_area_name)
         
         print(f"Attempting to create directory: {area_upload_dir}")
         os.makedirs(area_upload_dir, exist_ok=True)
@@ -370,7 +394,7 @@ def submitArea(current_user_id):
                 with open(file_path_on_server, 'wb') as f:
                     f.write(image_binary)
 
-                public_url = f"{request.url_root.rstrip('/')}/{app.config['BASE_UPLOAD_DIR']}/{sanitized_area_name}/{unique_filename}"
+                public_url = f"{app.config['EXTERNAL_BASE_URL']}/static/{os.path.basename(app.config['BASE_UPLOAD_DIR'])}/{sanitized_area_name}/{unique_filename}"
                 
                 new_image = areaImages(
                     Area_ID=new_area.Area_ID,
