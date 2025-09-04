@@ -13,9 +13,7 @@ class users(db.Model):
     Contact_No = db.Column(db.String(50), nullable=True)
     User_Type = db.Column(db.String(50), nullable=False)
 
-    # Relationship to areas created by this user
-    # 'areas' is the collection of area objects
-    areas = db.relationship('area', backref='author', lazy=True) # Changed backref to 'author' for clarity
+    areas = db.relationship('area', backref='author', lazy=True)
 
     def __repr__(self):
         return f"<User {self.User_ID} - {self.Email}>"
@@ -36,7 +34,6 @@ class area(db.Model):
     def __repr__(self):
         return f"<Area {self.Area_ID} - {self.Area_Name}>"
 
-
 class areaCoordinates(db.Model):
     __tablename__ = 'area_coordinates'
     Area_Coordinate_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -47,8 +44,6 @@ class areaCoordinates(db.Model):
 
     def __repr__(self):
         return f"<AreaCoordinate (ID: {self.Area_Coordinate_ID}, Area: {self.Area_ID})>"
-
-
 class areaImages(db.Model):
     __tablename__ = 'area_images' # Good table name
     Image_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)

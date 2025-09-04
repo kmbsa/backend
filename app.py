@@ -1,35 +1,26 @@
-from flask import Flask, request, jsonify
+import datetime
+import os
+from werkzeug.utils import secure_filename
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from functools import wraps
 from extensions import db, ma, bcrypt
 from Database import users, area, areaCoordinates, areaImages, area_schema
-import datetime
 
+import base64
+import uuid
 import jwt
 import time
-from functools import wraps
-
-import os 
-import base64 
-from werkzeug.utils import secure_filename
-import uuid 
-
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
 
-# --- Import load_dotenv for reading .env files ---
 from dotenv import load_dotenv
 
-# dynamic_ip is not directly used here in app.py's runtime logic,
-# but it's crucial for understanding how the IP for EXTERNAL_BASE_URL
-# is determined for your frontend, and thus what you should put in the backend's .env.
 import dynamic_ip as dip 
 
 app = Flask(__name__)
 CORS(app)
 
-# --- Load environment variables from backend's .env file ---
-# This assumes the .env file is directly in the 'src/backend/' directory,
-# alongside app.py.
 load_dotenv(os.path.join(app.root_path, '.env')) 
 
 connection_string = "mysql+pymysql://root@localhost:3306/Capstone_DB"
@@ -45,17 +36,11 @@ os.makedirs(os.path.join(app.root_path, BASE_UPLOAD_DIR), exist_ok=True)
 absolute_base_upload_dir = os.path.abspath(os.path.join(app.root_path, BASE_UPLOAD_DIR))
 print(f"Backend: Absolute path for base upload directory: {absolute_base_upload_dir}")
 
-# --- Set EXTERNAL_BASE_URL from the backend's .env file ---
-# This value must match the IP:Port that your React Native app (testApp)
-# uses to connect to this Flask backend.
 app.config['EXTERNAL_BASE_URL'] = os.getenv('EXTERNAL_BASE_URL') 
 
-# Add a warning if EXTERNAL_BASE_URL is not set in your backend's .env
 if not app.config['EXTERNAL_BASE_URL']:
     print("WARNING: EXTERNAL_BASE_URL is NOT set in src/backend/.env! Images and API calls may fail.")
     print("Please create/update src/backend/.env with: EXTERNAL_BASE_URL=http://YOUR_MACHINE_IP:5000")
-    # You might want to provide a fallback for local testing, e.g., 'http://127.0.0.1:5000'
-    # app.config['EXTERNAL_BASE_URL'] = 'http://127.0.0.1:5000' 
 
 
 db.init_app(app)
@@ -376,6 +361,8 @@ def submitArea(current_user_id):
                     base64_data = base64.b64decode(base64_data.split(',')[1])
                     print("Removed data URI prefix from base64 data.")
 
+                # You need to re-decode the base64 data after splitting.
+                # If the data comes without the prefix, this line will work correctly.
                 image_binary = base64.b64decode(base64_data)
 
                 extension = ""
@@ -394,15 +381,16 @@ def submitArea(current_user_id):
                 with open(file_path_on_server, 'wb') as f:
                     f.write(image_binary)
 
-                public_url = f"{app.config['EXTERNAL_BASE_URL']}/static/{os.path.basename(app.config['BASE_UPLOAD_DIR'])}/{sanitized_area_name}/{unique_filename}"
+                # --- This is the key change: store only the relative path ---
+                relative_url = f"/{app.config['BASE_UPLOAD_DIR']}/{sanitized_area_name}/{unique_filename}"
                 
                 new_image = areaImages(
                     Area_ID=new_area.Area_ID,
                     Image_filename=original_filename, 
-                    Filepath=public_url
+                    Filepath=relative_url
                 )
                 db.session.add(new_image)
-                print(f"Added image entry to DB for {new_area.Area_ID}: {public_url}")
+                print(f"Added image entry to DB for {new_area.Area_ID}: {relative_url}")
 
             except Exception as img_e:
                 app.logger.error(f"Error processing and saving image for area {new_area.Area_ID}: {img_e}")
