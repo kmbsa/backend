@@ -4,7 +4,6 @@ __pycache__/dynamic_ip.cpython-312.pyc
 __pycache__/extensions.cpython-312.pyc
 __pycache__/salt_gen.cpython-312.pyc
 Include/site/python3.12/greenlet/greenlet.h
-.gitignore
 Lib/site-packages/flask_bcrypt.py
 Lib/site-packages/netifaces.cp312-win_amd64.pyd
 Lib/site-packages/typing_extensions.py
@@ -2129,7 +2128,6 @@ static/area_images/naga_farm/20250901201112643943_283b204946234eca88bcf2fafca85f
 static/area_images/naga_farm/20250901201112670012_bbf29e079629476a9840e80c2c4acee7.jpeg
 static/area_images/nowhere/20250804190318805416_eb7b3362dc374279a048b285e7ed3f6d.jpeg
 .env
-.gitignore
-.gitignore
 static/area_images/vigan_farm/20250904111548391343_56e9b144d9874d1f914e2821cfc0bdd5.jpeg
 static/area_images/vigan_farm/20250904111548397143_9d556f9e1a0f43cd9874a9596728ae99.jpeg
+pyvenv.cfg
