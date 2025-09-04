@@ -3,6 +3,7 @@ import os
 from werkzeug.utils import secure_filename
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_migrate import Migrate
 from functools import wraps
 from extensions import db, ma, bcrypt
 from Database import users, area, areaCoordinates, areaImages, area_schema
@@ -46,6 +47,8 @@ if not app.config['EXTERNAL_BASE_URL']:
 db.init_app(app)
 ma.init_app(app)
 bcrypt.init_app(app)
+
+migrate = Migrate(app, db)
 
 BLACKLISTED_TOKENS = []
 
@@ -279,6 +282,7 @@ def submitArea(current_user_id):
         name = data.get('name')
         region = data.get('region')
         province = data.get('province')
+        organization = data.get('organization')
         coordinates_data = data.get('coordinates', [])
         photos_data = data.get('photos', [])
 
@@ -306,6 +310,7 @@ def submitArea(current_user_id):
             User_ID=user_id_from_token,
             Area_Name=name,
             Region=region,
+            Organization=organization,
             Province=province,
             created_at=datetime.datetime.now()
         )

@@ -26,6 +26,7 @@ class area(db.Model):
     Area_Name = db.Column(db.String(255), nullable=False)
     Region = db.Column(db.String(255), nullable=True)
     Province = db.Column(db.String(255), nullable=True)
+    Organization = db.Column(db.String(255), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
 
     coordinates = db.relationship('areaCoordinates', backref='area_parent', lazy=True, cascade="all, delete-orphan")
@@ -44,8 +45,9 @@ class areaCoordinates(db.Model):
 
     def __repr__(self):
         return f"<AreaCoordinate (ID: {self.Area_Coordinate_ID}, Area: {self.Area_ID})>"
+    
 class areaImages(db.Model):
-    __tablename__ = 'area_images' # Good table name
+    __tablename__ = 'area_images'
     Image_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Image_filename = db.Column(db.String(255), nullable=True)
