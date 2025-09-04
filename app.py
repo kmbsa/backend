@@ -26,7 +26,7 @@ load_dotenv(os.path.join(app.root_path, '.env'))
 connection_string = "mysql+pymysql://root@localhost:3306/Capstone_DB"
 app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = "pp5Z8iqjN7BuHfn"
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 BASE_UPLOAD_DIR = 'static/area_images' 
 app.config['BASE_UPLOAD_DIR'] = BASE_UPLOAD_DIR
