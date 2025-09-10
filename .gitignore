@@ -2138,3 +2138,4 @@ migrations/versions/8ae49b2fabca_added_new_organization_column_to_area.py
 migrations/versions/fec2478cbd5d_corrected_typo_in_organization_column_.py
 migrations/versions/__pycache__/2866c565fd55_added_new_tables_for_farm_area_soil_and_.cpython-312.pyc
 migrations/versions/2866c565fd55_added_new_tables_for_farm_area_soil_and_.py
+static/
