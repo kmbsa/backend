@@ -31,6 +31,7 @@ class area(db.Model):
 
     coordinates = db.relationship('areaCoordinates', backref='area_parent', lazy=True, cascade="all, delete-orphan")
     images = db.relationship('areaImages', backref='area_parent', lazy=True, cascade="all, delete-orphan")
+    farm = db.relationship('areaFarm', backref='area_parent', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Area {self.Area_ID} - {self.Area_Name}>"
@@ -63,17 +64,15 @@ class soil(db.Model):
     def __repr__(self):
         return f"<Soil (ID: {self.Soil_ID}, type: {self.Soil_Type})"
 
-def get_soil_types():
-    soil_types = soil.query.with_entities(soil.Soil_Type).all()
-    return [soil_types.name for soil in soil_types]
-
 class areaFarm(db.Model):
     __tablename__ = 'area_farm'
     Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
-    Soil = db.Column(db.String(255), db.ForeignKey('soil.Soil_ID'), nullable=True)
+    Soil = db.Column(db.Integer, db.ForeignKey('soil.Soil_ID'), nullable=True)
     Crop = db.Column(db.String(255), nullable=True)
     Hectares = db.Column(db.Numeric(10,2), nullable=False)
+
+    soil = db.relationship("soil", backref="farms")
 
 class userSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
@@ -115,7 +114,7 @@ class areaFarmSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = areaFarm
         load_instance = True
-        exclue = ('area_parent', 'soil_parent',)
+        exclude = ('area_parent', 'soil_parent',)
 
 user_schema = userSchema()
 users_schema = userSchema(many=True)
@@ -128,3 +127,9 @@ area_coordinates_schema = areaCoordinateSchema(many=True)
 
 image_schema = areaImageSchema()
 images_schema = areaImageSchema(many=True)
+
+soil_schema = soilSchema()
+soils_schema = soilSchema(many=True)
+
+farm_schema = areaFarmSchema()
+farms_schema = areaFarmSchema(many=True)
