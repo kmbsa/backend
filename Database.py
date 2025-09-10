@@ -54,12 +54,14 @@ class areaImages(db.Model):
     Filepath = db.Column(db.Text, nullable=False)
 
     def __repr__(self):
-        return f"<Image (ID: {self.Image_ID}, Filename: {self.Image_filename})>"
+        return f"<Image (ID: {self.Image_ID}, Filename: {self.Filepath})>"
     
 class soil(db.Model):
     __tablename__ = 'soil_type'
     Soil_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Soil_Type = db.Column(db.String(255), nullable=False)
+
+    farm_soil = db.relationship('areaFarm', backref='soil_parent', lazy=True)
 
     def __repr__(self):
         return f"<Soil (ID: {self.Soil_ID}, type: {self.Soil_Type})"
@@ -68,11 +70,9 @@ class areaFarm(db.Model):
     __tablename__ = 'area_farm'
     Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
-    Soil = db.Column(db.Integer, db.ForeignKey('soil.Soil_ID'), nullable=True)
+    Soil_ID = db.Column(db.Integer, db.ForeignKey('soil_type.Soil_ID'), nullable=True)
     Crop = db.Column(db.String(255), nullable=True)
-    Hectares = db.Column(db.Numeric(10,2), nullable=False)
-
-    soil = db.relationship("soil", backref="farms")
+    Hectares = db.Column(db.Numeric(9,4), nullable=False)
 
 class userSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
@@ -88,7 +88,6 @@ class areaImageSchema(ma.SQLAlchemyAutoSchema):
         exclude = ('area_parent',) 
 
     Image_ID = fields.Int(required=True)
-    Image_filename = fields.Str()
 
 class areaCoordinateSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
@@ -105,16 +104,19 @@ class areaSchema(ma.SQLAlchemyAutoSchema):
     coordinates = fields.Nested(areaCoordinateSchema, many=True)
     images = fields.Nested(areaImageSchema, many=True)
 
-class soilSchema(ma.SQLAlchemyAutoSchema):
-    class Meta:
-        model = soil
-        load_instance = True
-
 class areaFarmSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = areaFarm
         load_instance = True
         exclude = ('area_parent', 'soil_parent',)
+
+class soilSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = soil
+        load_instance = True
+
+    farm_soil = fields.Nested(areaFarmSchema, many=True)
+
 
 user_schema = userSchema()
 users_schema = userSchema(many=True)
