@@ -50,11 +50,30 @@ class areaImages(db.Model):
     __tablename__ = 'area_images'
     Image_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
-    Image_filename = db.Column(db.String(255), nullable=True)
     Filepath = db.Column(db.Text, nullable=False)
 
     def __repr__(self):
         return f"<Image (ID: {self.Image_ID}, Filename: {self.Image_filename})>"
+    
+class soil(db.Model):
+    __tablename__ = 'soil_type'
+    Soil_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    Soil_Type = db.Column(db.String(255), nullable=False)
+
+    def __repr__(self):
+        return f"<Soil (ID: {self.Soil_ID}, type: {self.Soil_Type})"
+
+def get_soil_types():
+    soil_types = soil.query.with_entities(soil.Soil_Type).all()
+    return [soil_types.name for soil in soil_types]
+
+class areaFarm(db.Model):
+    __tablename__ = 'area_farm'
+    Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
+    Soil = db.Column(db.String(255), db.ForeignKey('soil.Soil_ID'), nullable=True)
+    Crop = db.Column(db.String(255), nullable=True)
+    Hectares = db.Column(db.Numeric(10,2), nullable=False)
 
 class userSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
@@ -87,6 +106,16 @@ class areaSchema(ma.SQLAlchemyAutoSchema):
     coordinates = fields.Nested(areaCoordinateSchema, many=True)
     images = fields.Nested(areaImageSchema, many=True)
 
+class soilSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = soil
+        load_instance = True
+
+class areaFarmSchema(ma.SQLAlchemyAutoSchema):
+    class Meta:
+        model = areaFarm
+        load_instance = True
+        exclue = ('area_parent', 'soil_parent',)
 
 user_schema = userSchema()
 users_schema = userSchema(many=True)
