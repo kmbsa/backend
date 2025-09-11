@@ -354,7 +354,6 @@ def submitArea(current_user_id):
             print(f"Processing photo_item: {photo_item.keys()}")
             base64_data = photo_item.get('base64')
             mime_type = photo_item.get('mimeType')
-            original_filename = photo_item.get('filename', 'untitled_image')
 
             if not base64_data:
                 app.logger.warning(f"Skipping photo with missing base64 data for area {new_area.Area_ID}.")
@@ -373,8 +372,6 @@ def submitArea(current_user_id):
                 extension = ""
                 if mime_type and '/' in mime_type:
                     extension = "." + mime_type.split('/')[-1]
-                elif '.' in original_filename:
-                    extension = "." + original_filename.split('.')[-1]
                 else:
                     extension = ".jpg"
 
@@ -391,7 +388,6 @@ def submitArea(current_user_id):
                 
                 new_image = areaImages(
                     Area_ID=new_area.Area_ID,
-                    Image_filename=original_filename, 
                     Filepath=relative_url
                 )
                 db.session.add(new_image)
