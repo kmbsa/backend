@@ -122,7 +122,7 @@ def generate_token(user):
     token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm="HS256")
     return token
 
-@app.route('/user', methods=['GET'])
+@app.route('/auth/user', methods=['GET'])
 @token_required
 def get_user_data(current_user_id):
     start_time = time.time()
@@ -383,7 +383,6 @@ def submitArea(current_user_id):
                 with open(file_path_on_server, 'wb') as f:
                     f.write(image_binary)
 
-                # --- This is the key change: store only the relative path ---
                 relative_url = f"/{app.config['BASE_UPLOAD_DIR']}/{sanitized_area_name}/{unique_filename}"
                 
                 new_image = areaImages(
