@@ -157,7 +157,7 @@ def logout(current_user_id):
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
-@app.route('/user', methods=['POST'])
+@app.route('/auth/user', methods=['POST'])
 def register():
     try:
         data = request.get_json()
@@ -383,7 +383,6 @@ def submitArea(current_user_id):
                 with open(file_path_on_server, 'wb') as f:
                     f.write(image_binary)
 
-                # --- This is the key change: store only the relative path ---
                 relative_url = f"/{app.config['BASE_UPLOAD_DIR']}/{sanitized_area_name}/{unique_filename}"
                 
                 new_image = areaImages(
