@@ -157,7 +157,7 @@ def logout(current_user_id):
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
-@app.route('/user', methods=['POST'])
+@app.route('/auth/user', methods=['POST'])
 def register():
     try:
         data = request.get_json()
