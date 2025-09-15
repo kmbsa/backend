@@ -157,7 +157,7 @@ def logout(current_user_id):
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
-@app.route('/auth/user', methods=['POST'])
+@app.route('/user', methods=['POST'])
 def register():
     try:
         data = request.get_json()
@@ -286,7 +286,7 @@ def submitArea(current_user_id):
         coordinates_data = data.get('coordinates', [])
         photos_data = data.get('photos', [])
 
-        print(f"Received photos_data: {photos_data}")
+        # print(f"Received photos_data: {photos_data}")
         print(f"Number of photos received: {len(photos_data)}")
 
         payload_user_id = data.get('user_id')
