@@ -69,7 +69,7 @@ def update_env_file(env_path, key, value):
     load_dotenv(dotenv_path) # Load existing environment variables
     set_key(dotenv_path, key, value) # Set or update the specific key
 
-    print(f"✅ {key} set to: {value} in {env_path}")
+    # print(f"✅ {key} set to: {value} in {env_path}")
 
 
 # --- Determine the local IP address ---
@@ -87,5 +87,4 @@ backend_env_path = os.path.join("src", "backend", ".env")
 update_env_file(backend_env_path, "EXTERNAL_BASE_URL", api_url_value)
 
 print("\nAll .env files updated successfully.")
-print("Remember to restart your Flask backend and React Native app to apply changes!")
-
+print("Remember to restart your Flask backend and React Native app to apply changes!\n")

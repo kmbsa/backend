@@ -53,7 +53,7 @@ class areaCoordinates(db.Model):
 class areaImages(db.Model):
     __tablename__ = 'area_images'
     Image_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Area = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
+    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Filepath = db.Column(db.Text, nullable=False)
 
     def __repr__(self):
@@ -61,10 +61,11 @@ class areaImages(db.Model):
 class areaFarm(db.Model):
     __tablename__ = 'area_farm'
     Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Area = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
+    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Soil = db.Column(db.String(255), nullable=True)
     Crop_Suitability = db.Column(db.String(255), nullable=True)
     Hectares = db.Column(db.Numeric(9,4), nullable=False)
+    Status = db.Column(db.String(20), nullable=False, default="Inactive")
 
     harvest = db.relationship('farmHarvestData', backref='farm', lazy=True)
 
