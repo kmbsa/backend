@@ -11,7 +11,7 @@ class users(db.Model):
     Last_name = db.Column(db.String(255), nullable=False)
     Sex = db.Column(db.String(10), nullable=False)
     Contact_No = db.Column(db.String(50), nullable=False)
-    User_Type = db.Column(db.String(50), nullable=False)
+    User_Type = db.Column(db.String(50), nullable=False, default="User")
 
     areas = db.relationship('area', backref='author', lazy=True)
     approval = db.relationship('areaApproval', backref='moderator', lazy=True)
@@ -34,7 +34,7 @@ class area(db.Model):
     images = db.relationship('areaImages', backref='area_parent', lazy=True, cascade="all, delete-orphan")
     farm = db.relationship('areaFarm', backref='area_parent', lazy=True, cascade="all, delete-orphan")
     approval = db.relationship('areaApproval', backref='area_parent', lazy=True, cascade="all, delete-orphan")
-    topography = db.relationship('areaTopography', backreft='area_parent', lazy=True, cascade="all, delete-oprhan")
+    topography = db.relationship('areaTopography', backref='area_parent', lazy=True, cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Area {self.Area_ID} - {self.Area_Name}>"
@@ -53,7 +53,7 @@ class areaCoordinates(db.Model):
 class areaImages(db.Model):
     __tablename__ = 'area_images'
     Image_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
+    Area = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Filepath = db.Column(db.Text, nullable=False)
 
     def __repr__(self):
@@ -61,7 +61,7 @@ class areaImages(db.Model):
 class areaFarm(db.Model):
     __tablename__ = 'area_farm'
     Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
+    Area = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Soil = db.Column(db.String(255), nullable=True)
     Crop_Suitability = db.Column(db.String(255), nullable=True)
     Hectares = db.Column(db.Numeric(9,4), nullable=False)
@@ -71,10 +71,10 @@ class areaFarm(db.Model):
 class areaApproval(db.Model):
     __tablename__ = 'area_approval'
     Approval_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID', nullable=False))
+    Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     User_ID = db.Column(db.Integer, db.ForeignKey('users.User_ID'), nullable=False)
     Status = db.Column(db.String(20), nullable=True, default="Pending")
-    Time_of_checking = db.Column(db.DateTime, nullable=True)
+    Time_Of_Checking = db.Column(db.DateTime, nullable=True)
 
 class areaTopography(db.Model):
     __tablename__ = 'area_topography'
@@ -87,16 +87,15 @@ class farmHarvestData(db.Model):
     __tablename__ = 'farm_harvest_data'
     Harvest_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Farm_ID = db.Column(db.Integer, db.ForeignKey('area_farm.Farm_ID'), nullable=False)
-    Crop = db.Column(db.String, nullable=False)
+    Crop = db.Column(db.String(50), nullable=False)
     Sow_Date = db.Column(db.DateTime, nullable=False)
     Harvest_Date = db.Column(db.DateTime, nullable=False)
 
 class userSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = users
-        dump_only = ('User_ID',)
+        dump_only = ('User_ID', 'Password',)
         load_instance = True
-        exclude = ('Password',)
 
 class areaImageSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
@@ -143,7 +142,7 @@ class farmHarvestDataSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = farmHarvestData
         load_instance = True
-        exclude = ('farm')
+        exclude = ('farm',)
 
 
 
@@ -163,11 +162,11 @@ images_schema = areaImageSchema(many=True)
 farm_schema = areaFarmSchema()
 farms_schema = areaFarmSchema(many=True)
 
-approval_schema = areaApproval()
-approvals_schema = areaFarmSchema(many=True)
+approval_schema = areaApprovalSchema()
+approvals_schema = areaApprovalSchema(many=True)
 
-topography_schema = areaTopography()
-topographies_schema = areaTopography(many=True)
+topography_schema = areaTopographySchema()
+topographies_schema = areaTopographySchema(many=True)
 
-harvest_schema = farmHarvestData()
-harvests_schema = farmHarvestData(many=True)
+harvest_schema = farmHarvestDataSchema()
+harvests_schema = farmHarvestDataSchema(many=True)
