@@ -343,7 +343,7 @@ def submitArea(current_user_id):
             )
             db.session.add(new_coordinate)
         
-        sanitized_area_name = secure_filename(name.lower().replace(" ", "_"))
+        sanitized_area_name = secure_filename(name_data.lower().replace(" ", "_"))
         area_upload_dir = os.path.join(app.root_path, app.config['BASE_UPLOAD_DIR'], sanitized_area_name)
         
         print(f"Attempting to create directory: {area_upload_dir}")
