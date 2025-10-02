@@ -6,7 +6,7 @@ from flask_cors import CORS
 from flask_migrate import Migrate
 from functools import wraps
 from extensions import db, ma, bcrypt
-from Database import users, area, areaCoordinates, areaImages, area_schema
+from Database import users, area, areaCoordinates, areaImages, area_schema, areaTopography, areaFarm
 
 import base64
 import uuid
@@ -279,10 +279,10 @@ def submitArea(current_user_id):
         if not data:
             return jsonify({"message": "Invalid JSON data"}), 400
 
-        name = data.get('name')
-        region = data.get('region')
-        province = data.get('province')
-        organization = data.get('organization')
+        name_data = data.get('name')
+        region_data = data.get('region')
+        province_data = data.get('province')
+        organization_data = data.get('organization')
         coordinates_data = data.get('coordinates', [])
         photos_data = data.get('photos', [])
 
@@ -301,17 +301,17 @@ def submitArea(current_user_id):
             app.logger.warning(f"Attempted area submission for user_id {payload_user_id} by authenticated user {current_user_id}.")
             return jsonify({"message": "User ID in payload does not match authenticated user."}), 403
 
-        if not name:
+        if not name_data:
             return jsonify({"message": "Area 'name' is required"}), 400
 
         user_id_from_token = current_user_id
 
         new_area = area(
             User_ID=user_id_from_token,
-            Area_Name=name,
-            Region=region,
-            Organization=organization,
-            Province=province,
+            Area_Name=name_data,
+            Region=region_data,
+            Organization=organization_data,
+            Province=province_data,
             created_at=datetime.datetime.now()
         )
         db.session.add(new_area)
@@ -396,6 +396,26 @@ def submitArea(current_user_id):
                 app.logger.error(f"Error processing and saving image for area {new_area.Area_ID}: {img_e}")
                 print(f"Detailed image saving error: {img_e}")
                 continue
+        
+        slope_data = data.get('slope')
+        masl_data = data.get('masl')
+
+        new_topography_data = areaTopography(
+            Area_ID=new_area.Area_ID,
+            Slope=slope_data,
+            Mean_Average_Sea_Level=masl_data,
+        )
+        db.session.add(new_topography_data)
+
+        soil_type_data = data.get('soil_type')
+        suitability_data = data.get('suitability')
+
+        new_farm_data = areaFarm(
+            Area_ID=new_area.Area_ID,
+            Soil_Type=soil_type_data,
+            Suitability=suitability_data,
+        )
+        db.session.add(new_farm_data)
 
         db.session.commit()
 
