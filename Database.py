@@ -62,7 +62,7 @@ class areaFarm(db.Model):
     __tablename__ = 'area_farm'
     Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
-    Soil = db.Column(db.String(75), nullable=True)
+    Soil_Type = db.Column(db.String(75), nullable=True)
     Soil_Suitability = db.Column(db.String(75), nullable=True)
     Hectares = db.Column(db.Numeric(10,4), nullable=False)
     Status = db.Column(db.String(20), nullable=False, default="Inactive")

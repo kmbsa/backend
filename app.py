@@ -413,7 +413,7 @@ def submitArea(current_user_id):
         new_farm_data = areaFarm(
             Area_ID=new_area.Area_ID,
             Soil_Type=soil_type_data,
-            Suitability=suitability_data,
+            Soil_Suitability=suitability_data,
         )
         db.session.add(new_farm_data)
 
