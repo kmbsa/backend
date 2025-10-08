@@ -7,6 +7,10 @@ from flask_migrate import Migrate
 from functools import wraps
 from extensions import db, ma, bcrypt
 from Database import users, area, areaCoordinates, areaImages, area_schema, areaTopography, areaFarm
+from flask_jwt_extended import (
+    JWTManager, create_access_token, create_refresh_token,
+    jwt_required, get_jwt_identity, get_jwt
+)
 
 import base64
 import uuid
@@ -29,6 +33,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
+app.config['JWT_BLACKLIST_ENABLED'] = True
+app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access', 'refresh']
+app.config["JWT_SECRET_KEY"] = app.config['SECRET_KEY']
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=30)
+
+
+
 BASE_UPLOAD_DIR = 'static/area_images' 
 app.config['BASE_UPLOAD_DIR'] = BASE_UPLOAD_DIR
 
@@ -50,43 +61,15 @@ bcrypt.init_app(app)
 
 migrate = Migrate(app, db)
 
-BLACKLISTED_TOKENS = []
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        if 'Authorization' in request.headers:
-            auth_header = request.headers['Authorization']
-            try:
-                token = auth_header.split(" ")[1]
-            except IndexError:
-                return jsonify({'message': 'Token is missing or malformed!'}), 401
+jwt = JWTManager(app)
+BLACKLISTED_JTIS = set()
 
-        if not token:
-            return jsonify({'message': 'Token is missing!'}), 401
 
-        if token in BLACKLISTED_TOKENS:
-            return jsonify({'message': 'Token has been revoked.'}), 401
-
-        try:
-            decoded_token = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
-            current_user_id = decoded_token.get('user_id')
-
-            if not current_user_id:
-                return jsonify({'message': 'Token does not contain user ID!'}), 403
-
-        except jwt.ExpiredSignatureError:
-            return jsonify({'message': 'Token has expired!'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'message': 'Token is invalid!'}), 401
-        except Exception as e:
-            app.logger.error(f"Token decoding error: {e}")
-            return jsonify({'message': 'An error occurred during token verification.'}), 500
-
-        return f(current_user_id, *args, **kwargs)
-    return decorated
-
+@jwt.token_in_blocklist_loader
+def is_token_revoked(jwt_header, jwt_payload):
+    jti = jwt_payload['jti']
+    return jti in BLACKLISTED_JTIS
 
 @app.route('/hello')
 def hello():
@@ -102,10 +85,17 @@ def login():
         password = data.get('password')
         if not user_input or not password:
             return jsonify({'error': 'Email and password are required'}), 400
+        
         user = users.query.filter(users.Email.ilike(user_input)).first()
         if user and bcrypt.check_password_hash(user.Password, password):
-            token = generate_token(user)
-            return jsonify({'token': token, 'user_id': user.User_ID}), 200
+            additional_claims = {'email': user.Email}
+            access_token = create_access_token(identity=user.User_ID, additional_claims=additional_claims)
+            # refresh_token = create_refresh_token(identity=user.User_ID)
+            return jsonify({
+                'access_token': access_token,
+                'user_id': user.User_ID,
+                # 'refresh_token': refresh_token
+            }), 200
         else:
             return jsonify({'error': 'Invalid Credentials'}), 401
     except Exception as e:
@@ -113,25 +103,26 @@ def login():
         return jsonify({'error': 'An unexpected server error occurred during login.'}), 500
 
 def generate_token(user):
+    now = datetime.datetime.now(datetime.timezone.utc)
     token_payload = {
         'user_id': user.User_ID,
         'email': user.Email,
-        'exp': datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=1),
-        'iat': datetime.datetime.now(datetime.timezone.utc)
+        'exp': now,
+        'iat': now + datetime.timedelta(days=30),
+        'jti': str(uuid.uuid4)  # Token valid for 12 hours
     }
     token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm="HS256")
     return token
 
 @app.route('/auth/user', methods=['GET'])
-@token_required
-def get_user_data(current_user_id):
-    start_time = time.time()
+@jwt_required()
+def get_user_data():
+    current_user_id = get_jwt_identity()
     try:
         user = db.session.get(users, current_user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
-        end_time = time.time()
-        print(f"🕒 API Execution Time: {end_time - start_time:.4f} seconds")
+        
         return jsonify({
             'user_id': user.User_ID,
             'email': user.Email,
@@ -146,15 +137,13 @@ def get_user_data(current_user_id):
         return jsonify({'error': 'Server error'}), 500
 
 @app.route('/auth/logout', methods=['POST'])
-@token_required
-def logout(current_user_id):
-    token = request.headers.get('Authorization')
-    if token:
-        token = token.split("Bearer ")[1]
-        if token not in BLACKLISTED_TOKENS:
-            BLACKLISTED_TOKENS.append(token)
-            app.logger.info(f"User {current_user_id} logged out. Token blacklisted.")
+@jwt_required()
+def logout():
+    jti = get_jwt()['jti']
+    BLACKLISTED_JTIS.add(jti)
+    app.logger.info(f"User logged out. Token with jti {jti} blacklisted.")
     return jsonify({'message': 'Logged out successfully'}), 200
+
 
 
 @app.route('/user', methods=['POST'])
@@ -190,9 +179,10 @@ def register():
         return jsonify({'error': 'Server error during registration'}), 500
     
 @app.route('/areas', methods=['GET'])
-@token_required
-def get_all_areas(current_user_id):
+@jwt_required()
+def get_all_areas():
     try:
+        current_user_id = get_jwt_identity()
         print(f"--- API Endpoint /areas hit by user {current_user_id} ---")
         
         current_page = request.args.get('page', 1, type=int)
@@ -251,9 +241,10 @@ def get_all_areas(current_user_id):
 
 
 @app.route('/api/area/<int:area_id>', methods=['GET'])
-@token_required
-def get_area_details(current_user_id, area_id):
+@jwt_required()
+def get_area_details(area_id):
     try:
+        current_user_id = get_jwt_identity()
         current_area = area.query.options(
             joinedload(area.coordinates),
             joinedload(area.images)
@@ -271,9 +262,10 @@ def get_area_details(current_user_id, area_id):
 
 
 @app.route('/area', methods=['POST'])
-@token_required
-def submitArea(current_user_id):
+@jwt_required()
+def submitArea():
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
 
         if not data:
