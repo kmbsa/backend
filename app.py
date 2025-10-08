@@ -102,18 +102,6 @@ def login():
         app.logger.error(f"Login error: {e}")
         return jsonify({'error': 'An unexpected server error occurred during login.'}), 500
 
-def generate_token(user):
-    now = datetime.datetime.now(datetime.timezone.utc)
-    token_payload = {
-        'user_id': user.User_ID,
-        'email': user.Email,
-        'exp': now,
-        'iat': now + datetime.timedelta(days=30),
-        'jti': str(uuid.uuid4)  # Token valid for 12 hours
-    }
-    token = jwt.encode(token_payload, app.config['SECRET_KEY'], algorithm="HS256")
-    return token
-
 @app.route('/auth/user', methods=['GET'])
 @jwt_required()
 def get_user_data():
