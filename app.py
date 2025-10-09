@@ -8,13 +8,13 @@ from functools import wraps
 from extensions import db, ma, bcrypt
 from Database import users, area, areaCoordinates, areaImages, area_schema, areaTopography, areaFarm
 from flask_jwt_extended import (
-    JWTManager, create_access_token, create_refresh_token,
+    JWTManager, create_access_token,
     jwt_required, get_jwt_identity, get_jwt
 )
 
 import base64
 import uuid
-import jwt
+import jwt as pyjwt
 import time
 from sqlalchemy.orm import joinedload
 from sqlalchemy import or_
@@ -37,8 +37,8 @@ app.config['JWT_BLACKLIST_ENABLED'] = True
 app.config['JWT_BLACKLIST_TOKEN_CHECKS'] = ['access', 'refresh']
 app.config["JWT_SECRET_KEY"] = app.config['SECRET_KEY']
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(days=30)
-
-
+app.config['JWT_COOKIE_CSRF_PROTECT'] = False
+app.config['JWT_CSRF_IN_PAYLOAD'] = False
 
 BASE_UPLOAD_DIR = 'static/area_images' 
 app.config['BASE_UPLOAD_DIR'] = BASE_UPLOAD_DIR
@@ -65,7 +65,6 @@ migrate = Migrate(app, db)
 jwt = JWTManager(app)
 BLACKLISTED_JTIS = set()
 
-
 @jwt.token_in_blocklist_loader
 def is_token_revoked(jwt_header, jwt_payload):
     jti = jwt_payload['jti']
@@ -88,13 +87,10 @@ def login():
         
         user = users.query.filter(users.Email.ilike(user_input)).first()
         if user and bcrypt.check_password_hash(user.Password, password):
-            additional_claims = {'email': user.Email}
-            access_token = create_access_token(identity=user.User_ID, additional_claims=additional_claims)
-            # refresh_token = create_refresh_token(identity=user.User_ID)
+            access_token = create_access_token(identity=str(user.User_ID))
             return jsonify({
                 'access_token': access_token,
                 'user_id': user.User_ID,
-                # 'refresh_token': refresh_token
             }), 200
         else:
             return jsonify({'error': 'Invalid Credentials'}), 401
@@ -102,16 +98,37 @@ def login():
         app.logger.error(f"Login error: {e}")
         return jsonify({'error': 'An unexpected server error occurred during login.'}), 500
 
+@app.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user_id = get_jwt_identity()
+    try:
+        current_user_id = int(current_user_id)
+    except Exception as e:
+        print(f"Error converting JWT identity to int: {e}")
+        return jsonify({'error': 'Invalid user id in token'}), 400
+    return jsonify(logged_in_as=current_user_id), 200
+
 @app.route('/auth/user', methods=['GET'])
 @jwt_required()
 def get_user_data():
+    print("/auth/user called")
+    print(f"Request headers: {dict(request.headers)}")
+    print(f"Authorization header value: {request.headers.get('Authorization')}")
     current_user_id = get_jwt_identity()
+    print(f"JWT identity (user id): {current_user_id}")
+    try:
+        current_user_id = int(current_user_id)
+    except Exception as e:
+        print(f"Error converting JWT identity to int: {e}")
+        return jsonify({'error': 'Invalid user id in token'}), 400
     try:
         user = db.session.get(users, current_user_id)
+        print(f"User lookup result: {user}")
         if not user:
+            print("User not found for id:", current_user_id)
             return jsonify({'error': 'User not found'}), 404
-        
-        return jsonify({
+        user_json = {
             'user_id': user.User_ID,
             'email': user.Email,
             'first_name': user.First_name,
@@ -119,18 +136,24 @@ def get_user_data():
             'sex': user.Sex,
             'contact_no': user.Contact_No,
             'user_type': user.User_Type
-        }), 200
+        }
+        print(f"Returning user JSON: {user_json}")
+        return jsonify(user_json), 200
     except Exception as e:
         app.logger.error(f"Get user error: {e}")
+        print(f"Exception in /auth/user: {e}")
         return jsonify({'error': 'Server error'}), 500
 
 @app.route('/auth/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    jti = get_jwt()['jti']
-    BLACKLISTED_JTIS.add(jti)
-    app.logger.info(f"User logged out. Token with jti {jti} blacklisted.")
-    return jsonify({'message': 'Logged out successfully'}), 200
+    try:
+        jti = get_jwt()['jti']
+        BLACKLISTED_JTIS.add(jti)
+        app.logger.info(f"User logged out. Token with jti {jti} blacklisted.")
+        return jsonify({'message': 'Logged out successfully'}), 200
+    except Exception as e:
+        app.logger.error(f"Logout error: {e}")
 
 
 
@@ -171,6 +194,11 @@ def register():
 def get_all_areas():
     try:
         current_user_id = get_jwt_identity()
+        try:
+            current_user_id = int(current_user_id)
+        except Exception as e:
+            print(f"Error converting JWT identity to int: {e}")
+            return jsonify({'error': 'Invalid user id in token'}), 400
         print(f"--- API Endpoint /areas hit by user {current_user_id} ---")
         
         current_page = request.args.get('page', 1, type=int)
@@ -232,7 +260,6 @@ def get_all_areas():
 @jwt_required()
 def get_area_details(area_id):
     try:
-        current_user_id = get_jwt_identity()
         current_area = area.query.options(
             joinedload(area.coordinates),
             joinedload(area.images)
@@ -254,6 +281,11 @@ def get_area_details(area_id):
 def submitArea():
     try:
         current_user_id = get_jwt_identity()
+        try:
+            current_user_id = int(current_user_id)
+        except Exception as e:
+            print(f"Error converting JWT identity to int: {e}")
+            return jsonify({'error': 'Invalid user id in token'}), 400
         data = request.get_json()
 
         if not data:
@@ -410,7 +442,26 @@ def submitArea():
         app.logger.error(f"Error submitting area for user {current_user_id}: {e}")
         print(f"Overall submission error: {e}")
         return jsonify({"message": "An error occurred while submitting the area.", "error": str(e)}), 500
-        
+
+@app.route('/', defaults={'path': ''}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+@app.route('/<path:path>', methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+def catch_all(path):
+    print("[Catch-All] Incoming request:")
+    print(f"  Method: {request.method}")
+    print(f"  Path: /{path}")
+    print(f"  Headers: {dict(request.headers)}")
+    try:
+        data = request.get_json(force=False, silent=True)
+        print(f"  JSON Body: {data}")
+    except Exception as e:
+        print(f"  Could not parse JSON body: {e}")
+    return jsonify({
+        "message": "No matching route found.",
+        "method": request.method,
+        "path": f"/{path}",
+        "headers": dict(request.headers),
+    }), 404
+
 with app.app_context():
     print("Ensuring database tables exist...")
     db.create_all()
