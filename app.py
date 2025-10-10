@@ -3,6 +3,7 @@ import os
 from werkzeug.utils import secure_filename
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_mysqldb import MySQL
 from flask_migrate import Migrate
 from functools import wraps
 from extensions import db, ma, bcrypt
@@ -28,7 +29,10 @@ CORS(app)
 
 load_dotenv(os.path.join(app.root_path, '.env')) 
 
-connection_string = "mysql+pymysql://root@localhost:3306/Capstone_DB"
+connection_format = 'mysql+pymysql://{username}:{password}@{host}/{database}'
+
+connection_string = connection_format.format(username=os.getenv('MySQL_USERNAME'), password=os.getenv('MySQL_PASSWORD'), 
+                                            host=os.getenv('HOST_MACHINE'), database=os.getenv('DATABASE_NAME'))
 app.config['SQLALCHEMY_DATABASE_URI'] = connection_string
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
@@ -112,9 +116,6 @@ def protected():
 @app.route('/auth/user', methods=['GET'])
 @jwt_required()
 def get_user_data():
-    print("/auth/user called")
-    print(f"Request headers: {dict(request.headers)}")
-    print(f"Authorization header value: {request.headers.get('Authorization')}")
     current_user_id = get_jwt_identity()
     print(f"JWT identity (user id): {current_user_id}")
     try:
@@ -124,7 +125,6 @@ def get_user_data():
         return jsonify({'error': 'Invalid user id in token'}), 400
     try:
         user = db.session.get(users, current_user_id)
-        print(f"User lookup result: {user}")
         if not user:
             print("User not found for id:", current_user_id)
             return jsonify({'error': 'User not found'}), 404
@@ -443,24 +443,24 @@ def submitArea():
         print(f"Overall submission error: {e}")
         return jsonify({"message": "An error occurred while submitting the area.", "error": str(e)}), 500
 
-@app.route('/', defaults={'path': ''}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-@app.route('/<path:path>', methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
-def catch_all(path):
-    print("[Catch-All] Incoming request:")
-    print(f"  Method: {request.method}")
-    print(f"  Path: /{path}")
-    print(f"  Headers: {dict(request.headers)}")
-    try:
-        data = request.get_json(force=False, silent=True)
-        print(f"  JSON Body: {data}")
-    except Exception as e:
-        print(f"  Could not parse JSON body: {e}")
-    return jsonify({
-        "message": "No matching route found.",
-        "method": request.method,
-        "path": f"/{path}",
-        "headers": dict(request.headers),
-    }), 404
+# @app.route('/', defaults={'path': ''}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+# @app.route('/<path:path>', methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+# def catch_all(path):
+#     print("[Catch-All] Incoming request:")
+#     print(f"  Method: {request.method}")
+#     print(f"  Path: /{path}")
+#     print(f"  Headers: {dict(request.headers)}")
+#     try:
+#         data = request.get_json(force=False, silent=True)
+#         print(f"  JSON Body: {data}")
+#     except Exception as e:
+#         print(f"  Could not parse JSON body: {e}")
+#     return jsonify({
+#         "message": "No matching route found.",
+#         "method": request.method,
+#         "path": f"/{path}",
+#         "headers": dict(request.headers),
+#     }), 404
 
 with app.app_context():
     print("Ensuring database tables exist...")
