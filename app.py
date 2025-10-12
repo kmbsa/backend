@@ -117,7 +117,6 @@ def protected():
 @jwt_required()
 def get_user_data():
     current_user_id = get_jwt_identity()
-    print(f"JWT identity (user id): {current_user_id}")
     try:
         current_user_id = int(current_user_id)
     except Exception as e:
