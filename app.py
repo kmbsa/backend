@@ -7,7 +7,7 @@ from flask_mysqldb import MySQL
 from flask_migrate import Migrate
 from functools import wraps
 from extensions import db, ma, bcrypt
-from Database import users, area, areaCoordinates, areaImages, area_schema, areaTopography, areaFarm
+from Database import (users, area, areaCoordinates, areaImages, area_schema, areaTopography, areaFarm, areaApproval, farmHarvestData)
 from flask_jwt_extended import (
     JWTManager, create_access_token,
     jwt_required, get_jwt_identity, get_jwt
@@ -328,6 +328,16 @@ def submitArea():
         db.session.add(new_area)
         db.session.flush()
 
+
+        new_area_approval = areaApproval(
+            Area_ID=new_area.Area_ID,
+            User_ID=user_id_from_token,
+            Status="Pending",
+            created_at=datetime.datetime.now()
+        )
+        db.session.add(new_area_approval)
+        db.session.flush()
+
         if not coordinates_data:
             db.session.rollback()
             return jsonify({"message": "At least one coordinate is required for an area"}), 400
@@ -420,11 +430,13 @@ def submitArea():
 
         soil_type_data = data.get('soil_type')
         suitability_data = data.get('suitability')
+        hectares_data = data.get('hectares')
 
         new_farm_data = areaFarm(
             Area_ID=new_area.Area_ID,
             Soil_Type=soil_type_data,
             Soil_Suitability=suitability_data,
+            Hectares=hectares_data,
         )
         db.session.add(new_farm_data)
 
