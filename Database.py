@@ -91,6 +91,7 @@ class farmHarvestData(db.Model):
     Crop = db.Column(db.String(50), nullable=False)
     Sow_Date = db.Column(db.DateTime, nullable=False)
     Harvest_Date = db.Column(db.DateTime, nullable=False)
+    Status = db.Column(db.String(20), nullable=False, default="Ongoing")
 
 class userSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
