@@ -333,6 +333,7 @@ def submitArea():
         name_data = data.get('name')
         region_data = data.get('region')
         province_data = data.get('province')
+        barangay_data = data.get('barangay')
         organization_data = data.get('organization')
         coordinates_data = data.get('coordinates', [])
         photos_data = data.get('photos', [])
@@ -363,6 +364,7 @@ def submitArea():
             Region=region_data,
             Organization=organization_data,
             Province=province_data,
+            Barangay=barangay_data,
             created_at=datetime.datetime.now()
         )
         db.session.add(new_area)

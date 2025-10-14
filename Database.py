@@ -27,6 +27,7 @@ class area(db.Model):
     Area_Name = db.Column(db.String(255), nullable=False)
     Region = db.Column(db.String(255), nullable=False)
     Province = db.Column(db.String(255), nullable=False)
+    Barangay = db.Column(db.String(255), nullable=False)
     Organization = db.Column(db.String(255), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.now)
 
