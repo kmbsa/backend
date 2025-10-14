@@ -289,6 +289,11 @@ def get_all_area_approvals():
             paginated_area_entries = paginated_area_entries[:-1]
         
         # 4. Serialize the final 'area' objects
+<<<<<<< HEAD
+=======
+        # area_schema is assumed to be an instance of AreaSchema(many=True) 
+        # or a schema instance where dump is called with many=True
+>>>>>>> dc56e8e40935a004dd420d7ebde0e4959c016b22
         result = area_schema.dump(areas_to_display, many=True)
 
         return jsonify({"entries": result,
