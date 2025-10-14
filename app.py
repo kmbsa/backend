@@ -255,7 +255,7 @@ def get_all_areas():
         return jsonify({"message": "An error occurred while fetching paginated map entries.", "error": str(e)}), 500
 
 
-@app.route('/api/area/<int:area_id>', methods=['GET'])
+@app.route('/area/<int:area_id>', methods=['GET'])
 @jwt_required()
 def get_area_details(area_id):
     try:
@@ -460,118 +460,149 @@ def submitFarmHarvestData():
     try:
         data = request.get_json()
         current_user_id = get_jwt_identity()
+
         if not data:
             return jsonify({"message": "Invalid JSON data"}), 400
-        area_id = data.get('area_id')
-        crop_type = data.get('crop_type')
-        sow_date = data.get('sow_date')
-        harvest_date_str = data.get('harvest_date')
 
-        if not area_id or not crop_type or not sow_date or not harvest_date_str:
+        # 1. RETRIEVE THE ID AS area_id (which is what the frontend is sending)
+        area_id_raw = data.get('area_id')
+        crop_type = data.get('crop_type')
+        sow_date_str = data.get('sow_date')
+        harvest_date_str = data.get('harvest_date')
+        status = data.get('status')
+
+        if not area_id_raw or not crop_type or not sow_date_str or not harvest_date_str:
             return jsonify({"message": "Missing required fields"}), 400
+
         try:
-            area_id = int(area_id)
+            area_id = int(area_id_raw)
         except ValueError:
             return jsonify({"message": "'area_id' must be an integer"}), 400
 
-        sow_date = datetime.datetime.strptime(sow_date, '%Y-%m-%d').date()
+        area_record = areaFarm.query.filter_by(Area_ID=area_id).first()
+
+        if not area_record:
+            # If the area_id is not valid, we cannot find the parent Farm_ID
+            return jsonify({"message": f"Area ID {area_id} not found in AreaManagement table. Cannot determine parent Farm ID."}), 404
+
+        # Extract the true Farm_ID from the found record
+        farm_id_fk = area_record.Farm_ID
+
+        # Date conversion (original logic is fine)
+        sow_date = datetime.datetime.strptime(sow_date_str, '%Y-%m-%d').date()
         harvest_date = datetime.datetime.strptime(harvest_date_str, '%Y-%m-%d').date()
 
+        # 3. INSERT: Use the derived farm_id_fk (the correct foreign key)
         new_farm_harvest_data = farmHarvestData(
-            Area_ID=area_id,
-            Crop_Type=crop_type,
+            Farm_ID=farm_id_fk,  # <--- CORRECTED: Using the looked-up Farm_ID
+            Crop=crop_type,      # Using 'Crop' as per the SQL insert statement in your error
             Sow_Date=sow_date,
             Harvest_Date=harvest_date,
-            Status="Ongoing"
+            Status=status if status else "Ongoing"
         )
         db.session.add(new_farm_harvest_data)
         db.session.commit()
 
-        return jsonify({"message": "Farm harvest data submitted successfully!"}), 201
+        return jsonify({"message": f"Farm harvest data submitted successfully for Area ID {area_id}, linked to Farm ID {farm_id_fk}!"}), 201
 
     except Exception as e:
         db.session.rollback()
+        # Ensure we log the error for user traceability
         app.logger.error(f"Error submitting farm harvest data for user {current_user_id}: {e}")
         print(f"Overall submission error: {e}")
-        return jsonify({"message": "An error occurred while submitting the farm harvest data.", "error": str(e)}), 500
+        return jsonify({"message": "An error occurred while submitting the farm harvest data. Please check logs.", "error": str(e)}), 500
+
     
-@app.route('/area/farm_harvest/harvest_id=<int:harvest_id>', methods=['GET'])
+@app.route('/area/farm_harvest/area_id=<int:area_id>', methods=['GET'])
 @jwt_required()
-def getFarmHarvest(harvest_id):
+def getFarmHarvestsByAreaId(area_id):
     try:
-        harvest_data = db.session.get(farmHarvestData, harvest_id)
-        if not harvest_data:
-            return jsonify({"message": "Harvest data not found."}), 404
-        
-        harvest_json = {
-            'harvest_id': harvest_data.Harvest_ID,
-            'farm_id': harvest_data.Farm_ID,
-            'crop': harvest_data.Crop,
-            'sow_date': harvest_data.Sow_Date.isoformat(),
-            'harvest_date': harvest_data.Harvest_Date.isoformat(),
-            'status': harvest_data.Status
-        }
-        return jsonify(harvest_json), 200
+        # 1. LOOKUP: Find the correct Farm_ID using the incoming Area_ID
+        # (This is the same logic used in the POST route)
+        area_record = areaFarm.query.filter_by(Area_ID=area_id).first()
+
+        if not area_record:
+            return jsonify({"message": f"Area ID {area_id} not found."}), 404
+
+        farm_id_fk = area_record.Farm_ID
+
+        # 2. QUERY: Get all harvest records linked to this Farm_ID
+        harvest_records = farmHarvestData.query.filter_by(Farm_ID=farm_id_fk).all()
+
+        if not harvest_records:
+            return jsonify({"message": f"No harvest data found for Farm ID {farm_id_fk}.", "harvests": []}), 200
+
+        # 3. SERIALIZE: Convert the list of SQLAlchemy objects to a list of dictionaries
+        harvests_list = []
+        for record in harvest_records:
+            harvests_list.append({
+                'Harvest_ID': record.Harvest_ID,
+                'farm_id': record.Farm_ID,
+                'cropName': record.Crop,
+                'Sow_Date': record.Sow_Date.strftime('%Y-%m-%d'),
+                'Expected_Harvest_Date': record.Harvest_Date.strftime('%Y-%m-%d'), 
+                'status': record.Status
+            })
+
+        return jsonify({"harvests": harvests_list}), 200
+
     except Exception as e:
-        app.logger.error(f"Error fetching farm harvest data for ID {harvest_id}: {e}")
+        app.logger.error(f"Error fetching farm harvests for Area ID {area_id}: {e}")
         print(f"Overall fetching error: {e}")
         return jsonify({"message": "An error occurred while fetching the farm harvest data.", "error": str(e)}), 500
 
-@app.route('/area/farm_harvest_crop_count/harvest_id=<int:harvest_id>', methods=['GET'])
+
+@app.route('/area/farm_harvest/farm_id=<int:farm_id>', methods=['GET'])
 @jwt_required()
-def getFarmHarvestData(harvest_id):
+def getFarmHarvestByArea(farm_id):
     try:
-        # Step 1: Query the database with two filters: 
-        # 1. Matching the specific Harvest_ID
-        # 2. Filtering for records where the Status column is 'ongoing'
+        harvest_entries = farmHarvestData.query.filter_by(Farm_ID=farm_id).all()
+        serialized_entries = [entry.to_dict() for entry in harvest_entries]
+        return jsonify({"harvests": serialized_entries}), 200
+    except Exception as e:
+        app.logger.error(f"Error fetching farm harvest data for Area ID {farm_id}: {e}")
+        print(f"Overall fetching error: {e}")
+        return jsonify({"message": "An error occurred while fetching the farm harvest data.", "error": str(e)}), 500
+    
+@app.route('/area/farm_harvest_ongoing_count/<int:area_id>', methods=['GET'])
+@jwt_required()
+def getOngoingCropCountByArea(area_id):
+    try:
+        # Step 1: Get the Farm_ID corresponding to the Area_ID
+        area_entry = areaFarm.query.filter_by(Area_ID=area_id).first()
+
+        if not area_entry:
+            return jsonify({
+                "message": f"Area ID {area_id} not found.",
+                "count": 0
+            }), 200
+
+        farm_id = area_entry.Farm_ID
+
+        # Step 2: Query farmHarvestData using the retrieved Farm_ID and the 'Ongoing' status
         ongoing_batches = farmHarvestData.query.filter(
-            farmHarvestData.Harvest_ID == harvest_id,
-            farmHarvestData.Status == 'Ongoing' # 👈 ADDED FILTER
+            farmHarvestData.Farm_ID == farm_id,
+            farmHarvestData.Status == 'Ongoing',
         ).all()
         
-        # Step 2: Serialize the list of objects into a list of dictionaries
-        serialized_data = [batch.to_dict() for batch in ongoing_batches] # 👈 FIXED LOGIC
+        # Step 3: Calculate count and serialize the data
+        count = len(ongoing_batches)
         
-        # Step 3: Return the serialized list and a success code
+        # NOTE: Ensure that 'batch.to_dict()' is defined on your 'farmHarvestData' model
+        serialized_data = [batch.to_dict() for batch in ongoing_batches]
+        
+        # Step 4: Return the result
         return jsonify({
-            "harvest_data": serialized_data,
-            "count": len(serialized_data) # Optional: still return the count
+            "ongoing_crops_data": serialized_data,
+            "count": count
         }), 200
         
     except Exception as e:
-        app.logger.error(f"Error fetching farm harvest data for ID {harvest_id}: {e}")
-        # print(f"Overall fetching error: {e}") # You can remove 'print' in production
+        app.logger.error(f"Error fetching ongoing crop count for Area ID {area_id}: {e}")
         return jsonify({
-            "message": "An error occurred while fetching the farm harvest data.", 
+            "message": "An error occurred while fetching the ongoing crop count.",
             "error": str(e)
         }), 500
-
-@app.route('/area/farm_harvest_crop_count', methods=['GET'])
-@jwt_required()
-def getFarmHarvestCropCount():
-    try:
-        data = request.get_json()
-        if not data:
-            return jsonify({"message": "Invalid JSON data"}), 400
-        area_id = data.get('area_id')
-        if not area_id:
-            return jsonify({"message": "Missing 'area_id' field"}), 400
-        try:
-            area_id = int(area_id)
-        except ValueError:
-            return jsonify({"message": "'area_id' must be an integer"}), 400
-
-        crop_count = db.session.query(
-            farmHarvestData.Crop,
-            db.func.count(farmHarvestData.Crop).label('count')
-        ).filter_by(Area_ID=area_id).group_by(farmHarvestData.Crop).all()
-
-        return jsonify({"crop_counts": crop_count}), 200
-
-    except Exception as e:
-        app.logger.error(f"Error fetching farm harvest crop counts: {e}")
-        print(f"Overall fetching error: {e}")
-        return jsonify({"message": "An error occurred while fetching the farm harvest crop counts.", "error": str(e)}), 500
 
 # @app.route('/', defaults={'path': ''}, methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 # @app.route('/<path:path>', methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])

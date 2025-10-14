@@ -93,6 +93,18 @@ class farmHarvestData(db.Model):
     Harvest_Date = db.Column(db.DateTime, nullable=False)
     Status = db.Column(db.String(20), nullable=False, default="Ongoing")
 
+    def to_dict(self):
+        """Converts the farmHarvestData object to a dictionary."""
+        return {
+            'Harvest_ID': self.Harvest_ID,
+            'Farm_ID': self.Farm_ID,
+            'Status': self.Status,
+            'Crop': self.Crop,
+            'Sow_Date': self.Sow_Date.isoformat() if self.Sow_Date else None,
+            'Harvest_Date': self.Harvest_Date.isoformat() if self.Harvest_Date else None,
+            'Status': self.Status
+        }
+
 class userSchema(ma.SQLAlchemyAutoSchema):
     class Meta:
         model = users
