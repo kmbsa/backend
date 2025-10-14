@@ -192,14 +192,6 @@ def register():
 @jwt_required()
 def get_all_areas():
     try:
-        current_user_id = get_jwt_identity()
-        try:
-            current_user_id = int(current_user_id)
-        except Exception as e:
-            print(f"Error converting JWT identity to int: {e}")
-            return jsonify({'error': 'Invalid user id in token'}), 400
-        print(f"--- API Endpoint /areas hit by user {current_user_id} ---")
-        
         current_page = request.args.get('page', 1, type=int)
         items_per_page = request.args.get('per_page', 10, type=int)
         search_query = request.args.get('search', '')
@@ -250,10 +242,65 @@ def get_all_areas():
         }), 200
 
     except Exception as e:
-        app.logger.error(f"Error fetching paginated map entries for user {current_user_id}: {e}")
         print(f"An unexpected error occurred: {e}")
         return jsonify({"message": "An error occurred while fetching paginated map entries.", "error": str(e)}), 500
 
+@app.route('/areas_approved', methods=['GET'])
+@jwt_required()
+def get_all_area_approvals():
+    try:
+        # 1. Find all Approved areaApproval records
+        # This gives us a list of areaApproval objects that have Status="Approved"
+        approved_areas = areaApproval.query.filter_by(Status="Approved").all()
+
+        # 2. Extract the Area_IDs from the approved records
+        approved_area_ids = [approval.Area_ID for approval in approved_areas]
+
+        current_page = request.args.get('page', 1, type=int)
+        items_per_page = request.args.get('per_page', 10, type=int)
+        search_query = request.args.get('search', '')
+
+        # 3. Query the main 'area' table using these IDs and eagerly load related data
+        areas_to_display = area.query.filter(area.Area_ID.in_(approved_area_ids)).options(
+            # Assuming these relationships are defined on the 'area' model
+            joinedload(area.coordinates), 
+            joinedload(area.images),
+            # Add other necessary joinedload options (e.g., area.farm_data)
+        ).all()
+
+        if search_query:
+            search_pattern = f"%{search_query}%"
+            areas_to_display = areas_to_display.filter(
+                or_(
+                    area.Area_Name.ilike(search_pattern),
+                    area.Region.ilike(search_pattern),
+                    area.Province.ilike(search_pattern)
+                )
+            )
+        offset_value = (current_page - 1) * items_per_page
+
+        paginated_area_entries = areas_to_display.offset(offset_value).limit(items_per_page + 1).all()
+        
+        print(f"Database query successful. Found {len(paginated_area_entries)} entries.")
+
+        has_more_entries = len(paginated_area_entries) > items_per_page
+
+        if has_more_entries:
+            paginated_area_entries = paginated_area_entries[:-1]
+        
+        # 4. Serialize the final 'area' objects
+        # area_schema is assumed to be an instance of AreaSchema(many=True) 
+        # or a schema instance where dump is called with many=True
+        result = area_schema.dump(areas_to_display, many=True)
+
+        return jsonify({"entries": result,
+                        "page": current_page,
+                        "per_page": items_per_page,
+                        "has_more": has_more_entries}), 200
+
+    except Exception as e:
+        app.logger.error(f"Error fetching approved areas: {e}")
+        return jsonify({"message": "An error occurred while fetching approved areas.", "error": str(e)}), 500
 
 @app.route('/area/<int:area_id>', methods=['GET'])
 @jwt_required()
