@@ -187,7 +187,81 @@ def register():
         db.session.rollback()
         app.logger.error(f"Registration error: {e}")
         return jsonify({'error': 'Server error during registration'}), 500
-    
+
+@app.route('/user', methods=['PUT'])
+@jwt_required()
+def update_user_info():
+    try:
+        current_user_id = get_jwt_identity()
+        try:
+            current_user_id = int(current_user_id)
+        except Exception as e:
+            print(f"Error converting JWT identity to int: {e}")
+            return jsonify({'error': 'Invalid user id in token'}), 400
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid or missing JSON data in request body'}), 400
+        first_name = data.get('first_name')
+        last_name = data.get('last_name')
+        contact_no = data.get('contact_no')
+
+        if not all([first_name, last_name, contact_no]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        user = users.query.get(current_user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        user.First_name = first_name
+        user.Last_name = last_name
+        user.Contact_No = contact_no
+        db.session.commit()
+
+        return jsonify({'message': 'User information updated successfully'}), 200
+    except Exception as e:
+        app.logger.error(f"Update user info error: {e}")
+        return jsonify({'error': 'Server error'}), 500
+
+@app.route('/user/credentials', methods=['PUT'])
+@jwt_required()
+def update_user_credentials():
+    try:
+        current_user_id = get_jwt_identity()
+        try:
+            current_user_id = int(current_user_id)
+        except Exception as e:
+            print(f"Error converting JWT identity to int: {e}")
+            return jsonify({'error': 'Invalid user id in token'}), 400
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Invalid or missing JSON data in request body'}), 400
+        email = data.get('email')
+        current_password = data.get('current_password')
+        new_password = data.get('new_password')
+
+        if not all([email, current_password, new_password]):
+            return jsonify({'error': 'Missing required fields'}), 400
+
+        user = users.query.get(current_user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if user.Email.lower() != email.lower():
+            if users.query.filter_by(Email=email.lower()).first():
+                return jsonify({'error': 'Email address already registered'}), 409
+            user.Email = email.lower()
+
+        if not bcrypt.check_password_hash(user.Password, current_password):
+            return jsonify({'error': 'Current password is incorrect'}), 401
+
+        user.Password = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        db.session.commit()
+
+        return jsonify({'message': 'User credentials updated successfully'}), 200
+    except Exception as e:
+        app.logger.error(f"Update user credentials error: {e}")
+        return jsonify({'error': 'Server error'}), 500
+
 @app.route('/areas', methods=['GET'])
 @jwt_required()
 def get_all_areas():
