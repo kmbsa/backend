@@ -19,9 +19,8 @@ class users(db.Model):
     def __repr__(self):
         return f"<User {self.User_ID} - {self.Email}>"
 
-
 class area(db.Model):
-    __tablename__ = 'area'
+    __tablename__ = 'areas'
     Area_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     User_ID = db.Column(db.Integer, db.ForeignKey('users.User_ID'), nullable=False)
     Area_Name = db.Column(db.String(255), nullable=False)
@@ -60,7 +59,7 @@ class areaImages(db.Model):
     def __repr__(self):
         return f"<Image (ID: {self.Image_ID}, Filename: {self.Filepath})>"
 class areaFarm(db.Model):
-    __tablename__ = 'area_farm'
+    __tablename__ = 'area_farms'
     Farm_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Soil_Type = db.Column(db.String(75), nullable=True)
@@ -71,7 +70,7 @@ class areaFarm(db.Model):
     harvest = db.relationship('farmHarvestData', backref='farm', lazy=True)
 
 class areaApproval(db.Model):
-    __tablename__ = 'area_approval'
+    __tablename__ = 'area_approvals'
     Approval_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     User_ID = db.Column(db.Integer, db.ForeignKey('users.User_ID'), nullable=False)
@@ -79,7 +78,7 @@ class areaApproval(db.Model):
     Time_Of_Checking = db.Column(db.DateTime, nullable=True)
 
 class areaTopography(db.Model):
-    __tablename__ = 'area_topography'
+    __tablename__ = 'area_topographies'
     Area_Topography_ID = db.Column(db.Integer, primary_key=True, autoincrement=True)
     Area_ID = db.Column(db.Integer, db.ForeignKey('area.Area_ID'), nullable=False)
     Slope = db.Column(db.Integer, nullable=True)
