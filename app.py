@@ -84,7 +84,7 @@ def login():
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Invalid or missing JSON data in request body'}), 400
-        user_input = data.get('user')
+        user_input = data.get('email')
         password = data.get('password')
         if not user_input or not password:
             return jsonify({'error': 'Email and password are required'}), 400
